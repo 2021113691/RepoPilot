@@ -83,7 +83,19 @@ Repair summaries record patch attempts and successful patches, test runs and fai
 
 ## Day 3 B0/B1 experiment
 
+### Experiment Modes
+
+| Mode | Initial repository context |
+| --- | --- |
+| B0 Naive Agent | None; the Agent searches and reads files itself. |
+| B1 Static Retrieval Agent | One issue-conditioned context message before the Agent starts. |
+
 B0 is frozen at commit `6f6869d` and configured by [experiments/b0_naive.yaml](experiments/b0_naive.yaml). B1 uses [experiments/b1_static.yaml](experiments/b1_static.yaml). Both configs share Agent budgets; both use the same model settings from `.env`, tools, RepairPolicy, and clean baseline commit for each paired case. B0 starts with the original system and issue messages. B1 inserts a single retrieved repository context before the issue. Retrieval never runs again after test failures.
+
+```text
+Issue -> deterministic lexical retrieval -> snippet ranking
+      -> token-budget packing -> initial repository context -> same repair Agent
+```
 
 Run all five paired toy cases with the configured real model:
 
