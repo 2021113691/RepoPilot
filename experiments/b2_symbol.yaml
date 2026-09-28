@@ -1,0 +1,10 @@
+{
+  "name": "b2_symbol",
+  "retrieval": {
+    "enabled": true,
+    "mode": "symbol",
+    "context_budget_tokens": 8000,
+    "ranking": {"lexical": true, "symbols": true}
+  },
+  "agent": {"max_steps": 20, "max_tool_calls": 40, "max_patch_attempts": 5, "max_test_runs": 5}
+}

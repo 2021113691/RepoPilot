@@ -105,6 +105,24 @@ python scripts/run_experiment.py --paired --cases email discount regression gree
 
 The runner clones each disposable case baseline, verifies the commits match, writes trajectories and B1 `retrieval.json` files under `runs/day3/`, collects `reports/day3_results.csv`, and restores the disposable working trees. `--config experiments/b0_naive.yaml` or `--config experiments/b1_static.yaml` runs one method. The `.yaml` configs use JSON syntax, a YAML 1.2 subset readable without another dependency.
 
+### B2 Symbol-Aware Static Context
+
+B2 adds Python AST definitions and lexical references to the frozen B1 candidate discovery. It ranks implementation definitions ahead of ordinary references, keeps related test snippets available, and uses the same 8,000 estimated-token budget and `score / token_cost` greedy packing. Retrieval still runs only once before the same repair Agent starts.
+
+```text
+Issue -> lexical query -> tracked Python AST index -> definition/reference matching
+      -> symbol-aware ranking -> same token-budget packing
+      -> initial repository context -> same repair Agent
+```
+
+Run B2 on the five Day 3 cases using the clean, frozen Day 3 workspaces under `runs/day3/`:
+
+```powershell
+python scripts/run_day4.py --cases email discount regression greeting invoice
+```
+
+The runner checks Day 3 model/config/baseline consistency, clones each exact baseline commit, and writes B2 trajectories plus `reports/day4_results.csv`. It also analyzes saved B1 trajectories for read calls that revisit an initially retrieved file or overlap an initially retrieved line range. B0 has no initial retrieval, so those ratios are recorded as N/A. This analysis only measures `read_file` behavior; it never changes tool permissions or caches observations.
+
 Retrieval uses deterministic issue tokens, tracked file names, bounded ripgrep content hits, and a test/source name relation. It merges nearby ±20-line windows, caps snippets at 80 lines, and greedily packs by relevance score divided by estimated token cost under an 8,000-token budget. Estimated context tokens use `ceil(UTF-8 bytes / 4)`; they are **not** API token usage. `input_tokens` and `output_tokens` come from provider usage only and are `null` in experiment results if any model call omits usage. The case-level Hit@1/3/5 values compare retrieved files with finally modified files only after repair; those labels never enter retrieval.
 
 ## Current limitations
