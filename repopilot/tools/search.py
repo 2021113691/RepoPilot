@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from .base import Tool, ToolResult
+from .base import Tool, ToolResult, is_sensitive_name
 from .files import IGNORED
 
 
@@ -44,7 +44,9 @@ class SearchCode(Tool):
         return self._fallback(query, root, glob, max_results)
 
     def _ripgrep(self, rg: str, query: str, root: Path, glob: str | None, max_results: int) -> ToolResult:
-        command = [rg, "--fixed-strings", "--line-number", "--no-heading", "--color", "never", "--with-filename", "--glob", "!.env", "--glob", "!.env.*", "--glob", "!*.pem", "--glob", "!*.key"]
+        command = [rg, "--fixed-strings", "--line-number", "--no-heading", "--color", "never", "--with-filename"]
+        for excluded in (".env", ".env.*", ".npmrc", ".pypirc", "id_rsa", "id_ed25519", "credentials.*", "secrets.*", "*.pem", "*.key"):
+            command += ["--glob", f"!{excluded}"]
         if glob:
             command += ["--glob", glob]
         command += ["--", query, self.relative(root) or "."]
@@ -93,9 +95,9 @@ class SearchCode(Tool):
 
     def _files(self, root: Path):
         for directory, dirs, files in os.walk(root, followlinks=False):
-            dirs[:] = [name for name in dirs if name not in IGNORED and not name.startswith(".env.") and not (Path(directory) / name).is_symlink()]
+            dirs[:] = [name for name in dirs if name not in IGNORED and not is_sensitive_name(name) and not (Path(directory) / name).is_symlink()]
             for name in files:
-                if name in IGNORED or name.startswith(".env.") or name.endswith((".pem", ".key")):
+                if name in IGNORED or is_sensitive_name(name):
                     continue
                 candidate = Path(directory) / name
                 if candidate.is_symlink() or not candidate.resolve().is_relative_to(self.workspace):

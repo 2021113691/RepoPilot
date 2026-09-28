@@ -21,12 +21,14 @@ def test_boundary_rejects_parent_and_symlink(tmp_path):
 def test_list_files_is_bounded_and_ignores_artifacts(tmp_path):
     (tmp_path / "app.py").write_text("hello", encoding="utf-8")
     (tmp_path / ".env").write_text("TOKEN=secret", encoding="utf-8")
+    (tmp_path / "credentials.json").write_text('{"token":"secret"}', encoding="utf-8")
     (tmp_path / ".git").mkdir()
     (tmp_path / "__pycache__").mkdir()
     result = ListFiles(tmp_path).execute(max_entries=10)
     assert result.success
     assert "app.py" in result.content
     assert ".env" not in result.content
+    assert "credentials.json" not in result.content
     assert ".git" not in result.content
     assert "__pycache__" not in result.content
 
@@ -38,14 +40,18 @@ def test_read_file_slice_and_limit(tmp_path):
     assert result.success and result.content == "2 | two\n3 | three"
     assert not tool.execute(path="app.py", start_line=1, end_line=300).success
     assert not tool.execute(path=".env").success
+    (tmp_path / "credentials.json").write_text("secret", encoding="utf-8")
+    assert not tool.execute(path="credentials.json").success
 
 
 def test_search_code_finds_line_and_skips_env(tmp_path):
     (tmp_path / "app.py").write_text("alpha\nneedle here\n", encoding="utf-8")
     (tmp_path / ".env").write_text("needle secret\n", encoding="utf-8")
+    (tmp_path / "credentials.json").write_text("needle secret\n", encoding="utf-8")
     result = SearchCode(tmp_path).execute(query="needle")
     assert result.success and "app.py:2: needle here" in result.content
     assert ".env" not in result.content
+    assert "credentials.json" not in result.content
 
 
 def test_search_code_python_fallback(tmp_path, monkeypatch):

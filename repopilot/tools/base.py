@@ -13,6 +13,15 @@ class WorkspaceViolation(ValueError):
     pass
 
 
+def is_sensitive_name(name: str) -> bool:
+    name = name.lower()
+    return (
+        name in {".env", ".npmrc", ".pypirc", "id_rsa", "id_ed25519"}
+        or name.startswith((".env.", "credentials.", "secrets."))
+        or name.endswith((".pem", ".key"))
+    )
+
+
 @dataclass(frozen=True)
 class ToolResult:
     success: bool
@@ -22,7 +31,7 @@ class ToolResult:
     duration: float = 0.0
 
     def observation(self) -> str:
-        return self.content if self.success else f"ERROR: {self.error or 'tool failed'}"
+        return self.content if self.content else f"ERROR: {self.error or 'tool failed'}"
 
 
 class Tool(ABC):
@@ -47,7 +56,7 @@ class Tool(ABC):
             relative = target.relative_to(self.workspace)
         except ValueError:
             raise WorkspaceViolation("workspace boundary violation") from None
-        if any(part == ".git" or part == ".env" or part.startswith(".env.") or part.endswith((".pem", ".key")) for part in relative.parts):
+        if any(part.lower() == ".git" or is_sensitive_name(part) for part in relative.parts):
             raise ValueError("sensitive path is not available to repository tools")
         return target
 

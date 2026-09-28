@@ -1,0 +1,1 @@
+"""Toy pricing package."""

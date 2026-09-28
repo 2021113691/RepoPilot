@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .base import Tool, ToolResult
+from .base import Tool, ToolResult, is_sensitive_name
 
 
 IGNORED = {".git", ".env", "__pycache__", ".venv", "venv", "node_modules", "dist", "build"}
@@ -38,7 +38,7 @@ class ListFiles(Tool):
             if depth > max_depth or truncated:
                 return
             for child in sorted(directory.iterdir(), key=lambda p: p.name.lower()):
-                if child.name in IGNORED or child.name.startswith(".env.") or child.name.endswith((".pem", ".key")):
+                if child.name in IGNORED or is_sensitive_name(child.name):
                     continue
                 resolved = child.resolve()
                 if not resolved.is_relative_to(self.workspace):

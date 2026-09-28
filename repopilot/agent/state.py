@@ -34,6 +34,17 @@ class AgentState:
     error: str | None = None
     latency_sec: float | None = None
     tool_sequence: list[str] = field(default_factory=list)
+    repair_mode: bool = False
+    patch_count: int = 0
+    repair_attempts: int = 0
+    test_runs: int = 0
+    test_failures: int = 0
+    changed_loc: int = 0
+    tests_passed: bool = False
+    last_test_result: dict | None = None
+    current_diff: str | None = None
+    last_full_pass_patch_count: int = -1
+    diff_reviewed_patch_count: int = -1
 
     def add_usage(self, usage: TokenUsage) -> None:
         if usage.input_tokens is not None:

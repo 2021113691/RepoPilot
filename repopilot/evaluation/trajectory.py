@@ -3,10 +3,26 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 from repopilot.agent.state import AgentState
+
+
+def _scrub(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: ("[REDACTED]" if key.lower() in {"api_key", "authorization", "access_token", "refresh_token", "password", "secret"} else _scrub(item))
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_scrub(item) for item in value]
+    if isinstance(value, str):
+        for key, secret in os.environ.items():
+            if any(term in key.upper() for term in ("KEY", "TOKEN", "SECRET", "PASSWORD", "AUTHORIZATION")) and len(secret) >= 8:
+                value = value.replace(secret, "[REDACTED]")
+    return value
 
 
 class TrajectoryLogger:
@@ -17,7 +33,7 @@ class TrajectoryLogger:
 
     def event(self, name: str, **data: Any) -> None:
         with self.path.open("a", encoding="utf-8") as stream:
-            stream.write(json.dumps({"event": name, **data}, ensure_ascii=False, default=str) + "\n")
+            stream.write(json.dumps(_scrub({"event": name, **data}), ensure_ascii=False, default=str) + "\n")
 
     def finish(self, state: AgentState) -> dict[str, Any]:
         summary = {
@@ -37,8 +53,17 @@ class TrajectoryLogger:
             "final_answer": state.final_answer,
             "error": state.error,
             "latency_sec": state.latency_sec,
+            "repair_mode": state.repair_mode,
+            "patch_count": state.patch_count,
+            "repair_attempts": state.repair_attempts,
+            "test_runs": state.test_runs,
+            "test_failures": state.test_failures,
+            "changed_loc": state.changed_loc,
+            "tests_passed": state.tests_passed,
+            "last_test_result": state.last_test_result,
+            "current_diff": state.current_diff,
         }
         (self.directory / "summary.json").write_text(
-            json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            json.dumps(_scrub(summary), ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
         return summary
