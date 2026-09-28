@@ -27,6 +27,7 @@ class AgentState:
     llm_calls: int = 0
     input_tokens: int | None = None
     output_tokens: int | None = None
+    token_usage_complete: bool = True
     started_at: str = field(default_factory=utc_now)
     finished_at: str | None = None
     status: str = "pending"
@@ -35,6 +36,8 @@ class AgentState:
     latency_sec: float | None = None
     tool_sequence: list[str] = field(default_factory=list)
     repair_mode: bool = False
+    retrieval_mode: str = "none"
+    initial_context_tokens: int = 0
     patch_count: int = 0
     repair_attempts: int = 0
     protected_patch_rejections: int = 0
@@ -48,6 +51,8 @@ class AgentState:
     diff_reviewed_patch_count: int = -1
 
     def add_usage(self, usage: TokenUsage) -> None:
+        if usage.input_tokens is None or usage.output_tokens is None:
+            self.token_usage_complete = False
         if usage.input_tokens is not None:
             self.input_tokens = (self.input_tokens or 0) + usage.input_tokens
         if usage.output_tokens is not None:

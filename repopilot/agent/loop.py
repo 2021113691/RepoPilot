@@ -54,21 +54,28 @@ class AgentLoop:
         self.max_patch_attempts = max_patch_attempts
         self.max_test_runs = max_test_runs
 
-    def run(self, issue: str) -> AgentState:
+    def run(self, issue: str, *, initial_context: str | None = None, initial_context_tokens: int = 0) -> AgentState:
         if not issue.strip():
             raise ValueError("issue must not be empty")
+        if initial_context_tokens < 0 or (initial_context is None and initial_context_tokens != 0):
+            raise ValueError("initial context token accounting is invalid")
         state = AgentState(issue=issue, workspace=self.workspace, repair_mode=self.repair)
+        state.retrieval_mode = "lexical" if initial_context is not None else "none"
+        state.initial_context_tokens = initial_context_tokens
         logger = TrajectoryLogger(self.runs_dir, state.task_id)
         runtime = RuntimeContext.detect(self.workspace)
         run_start = time.perf_counter()
         state.messages = [
             {"role": "system", "content": system_prompt(runtime, repair=self.repair)},
-            {"role": "user", "content": issue},
         ]
+        if initial_context is not None:
+            state.messages.append({"role": "user", "content": initial_context})
+        state.messages.append({"role": "user", "content": issue})
         logger.event(
             "start", task_id=state.task_id, issue=issue, runtime=runtime.__dict__,
             repair_mode=self.repair, max_steps=self.max_steps, max_tool_calls=self.max_tool_calls,
             max_patch_attempts=self.max_patch_attempts, max_test_runs=self.max_test_runs,
+            retrieval_mode=state.retrieval_mode, initial_context_tokens=state.initial_context_tokens,
         )
         state.status = "running"
         try:

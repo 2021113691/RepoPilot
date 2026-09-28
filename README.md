@@ -1,6 +1,6 @@
 # RepoPilot
 
-RepoPilot is a repository-level coding agent project focused on context engineering. **Current status: Day 2 controlled repair loop.** It can inspect a Git repository, apply a constrained patch, run pytest, use failures to retry, and record the trajectory. Retrieval and context optimization are future work.
+RepoPilot is a repository-level coding agent project focused on context engineering. **Current status: Day 3 static retrieval experiment.** It can inspect a Git repository, apply a constrained patch, run pytest, use failures to retry, and record the trajectory. B1 adds one initial lexical repository context; the B0 repair loop remains the naive baseline.
 
 ## Architecture
 
@@ -80,6 +80,20 @@ Repair targets are governed by a configurable `RepairPolicy`; toy repair benchma
 Before writing, `apply_patch` checks every target against the workspace boundary, symlink and credential restrictions, the repair policy, and Git tracking. A denied target rejects the whole patch with a `protected_path` or `not_writable` observation; the Agent can then patch an allowed source file. The trajectory records a `patch_rejected` event and the summary counts protected-path rejections.
 
 Repair summaries record patch attempts and successful patches, test runs and failures, modified files, added/deleted lines, changed LOC, model/tool calls, tokens, and latency. The full suite must pass after the latest patch before the agent reports `tests_passed`.
+
+## Day 3 B0/B1 experiment
+
+B0 is frozen at commit `6f6869d` and configured by [experiments/b0_naive.yaml](experiments/b0_naive.yaml). B1 uses [experiments/b1_static.yaml](experiments/b1_static.yaml). Both configs share Agent budgets; both use the same model settings from `.env`, tools, RepairPolicy, and clean baseline commit for each paired case. B0 starts with the original system and issue messages. B1 inserts a single retrieved repository context before the issue. Retrieval never runs again after test failures.
+
+Run all five paired toy cases with the configured real model:
+
+```powershell
+python scripts/run_experiment.py --paired --cases email discount regression greeting invoice
+```
+
+The runner clones each disposable case baseline, verifies the commits match, writes trajectories and B1 `retrieval.json` files under `runs/day3/`, collects `reports/day3_results.csv`, and restores the disposable working trees. `--config experiments/b0_naive.yaml` or `--config experiments/b1_static.yaml` runs one method. The `.yaml` configs use JSON syntax, a YAML 1.2 subset readable without another dependency.
+
+Retrieval uses deterministic issue tokens, tracked file names, bounded ripgrep content hits, and a test/source name relation. It merges nearby ±20-line windows, caps snippets at 80 lines, and greedily packs by relevance score divided by estimated token cost under an 8,000-token budget. Estimated context tokens use `ceil(UTF-8 bytes / 4)`; they are **not** API token usage. `input_tokens` and `output_tokens` come from provider usage only and are `null` in experiment results if any model call omits usage. The case-level Hit@1/3/5 values compare retrieved files with finally modified files only after repair; those labels never enter retrieval.
 
 ## Current limitations
 

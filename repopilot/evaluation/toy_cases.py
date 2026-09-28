@@ -38,6 +38,16 @@ CASES = {
         "slugify() should collapse repeated literal spaces into one hyphen, such as 'Hello  World' -> 'hello-world'. Preserve existing behavior for other characters.",
         "tests/test_slug_target.py",
     ),
+    "greeting": ToyCase(
+        "greeting", ROOT / "examples" / "toy_cases" / "greeting",
+        "format_greeting(name) should strip surrounding whitespace from the name while preserving internal spaces. For example, '  Ada  ' should become 'Hello, Ada!'. Patch and verify with pytest.",
+        "tests/test_greeting.py",
+    ),
+    "invoice": ToyCase(
+        "invoice", ROOT / "examples" / "toy_cases" / "invoice",
+        "invoice_total(subtotal, rate) should apply rate as a percentage of subtotal. For 100.0 and 0.10 the result should be 110.0. Find the cross-file calculation error, patch it, and verify with pytest.",
+        "tests/test_invoice.py",
+    ),
 }
 
 
