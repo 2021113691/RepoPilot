@@ -81,7 +81,7 @@ B2 — Dynamic Context Agent
 ## 3. 技术栈
 
 ```text
-Python 3.11+
+Python 3.10+
 Pydantic
 OpenAI-compatible API
 subprocess

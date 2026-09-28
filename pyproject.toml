@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "repopilot"
 version = "0.1.0"
 description = "A minimal read-only repository coding agent runtime"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = []
 
 [project.optional-dependencies]

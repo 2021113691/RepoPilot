@@ -19,7 +19,7 @@ Issue + RuntimeContext -> ModelBackend -> AgentLoop
 
 ## Installation
 
-Requires Python 3.11 or newer. No runtime packages are required.
+Requires Python 3.10 or newer. No runtime packages are required.
 
 ```powershell
 python -m pip install -e ".[test]"
@@ -70,7 +70,7 @@ File paths are resolved against the workspace and rejected when they escape it, 
 ## Current limitations
 
 - The real API has been exercised once with a toy repository; this is a smoke check, not a reliability or benchmark result. See [Day 1 report](reports/day1_summary.md).
-- The user's `hello-agent` environment has Python 3.10.21 and was used for tests and the real smoke. It is below the declared Python 3.11+ support floor, so compatibility with 3.10 is incidental.
+- Python 3.10.21 in the `hello-agent` environment has passed the Day 1 tests and real API smoke.
 - No patch, test-running, arbitrary shell, retrieval, or context management tools exist yet.
 - The lightweight `.env` reader supports simple `KEY=VALUE` lines, not the full dotenv format.
 - Shell detection uses the Windows parent process without extra packages, or optional `psutil` on other systems. It reports `unknown` if no reliable signal exists; `REPOPILOT_SHELL` can supply an explicit value.

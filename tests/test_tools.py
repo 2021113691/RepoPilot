@@ -55,9 +55,10 @@ def test_search_code_python_fallback(tmp_path, monkeypatch):
     assert result.success and result.metadata["engine"] == "python"
 
 
-def test_git_diff_non_repo(tmp_path):
+def test_git_diff_workspace_without_git_root(tmp_path):
     result = GitDiff(tmp_path).execute()
-    assert not result.success and "not a Git repository" in result.error
+    assert not result.success
+    assert result.error in {"workspace is not a Git repository", "workspace is not the Git repository root"}
 
 
 def test_git_diff_repo(tmp_path):

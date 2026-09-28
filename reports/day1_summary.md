@@ -10,7 +10,7 @@ Minimal read-only agent runtime: provider-neutral model types, OpenAI-compatible
 
 ## Runtime Detection
 
-Observed in the `hello-agent` smoke environment: Windows 10.0.26200, PowerShell, Python 3.10.21, Windows path separator, Git available, ripgrep available. RuntimeContext uses the selected workspace as its working directory in the prompt. A shell that cannot be identified is reported as `unknown`. The default Anaconda environment has Python 3.13.9; `hello-agent` is below the project's declared 3.11+ support floor.
+Observed in the `hello-agent` smoke environment: Windows 10.0.26200, PowerShell, Python 3.10.21, Windows path separator, Git available, ripgrep available. RuntimeContext uses the selected workspace as its working directory in the prompt. A shell that cannot be identified is reported as `unknown`. The default Anaconda environment has Python 3.13.9; the project supports Python 3.10+.
 
 ## Tools
 
@@ -49,7 +49,7 @@ The real run generated `runs/cc67f43fb4754b0d85da44d1adfc88a2/trajectory.jsonl` 
 ## Known Issues
 
 - Only one real toy-repository smoke was run. It demonstrates the read-only path, not reliability across tasks.
-- The `hello-agent` Python 3.10.21 environment works for these tests and this run but is below the declared Python 3.11+ floor.
+- Only Python 3.10.21 and 3.13.9 have been exercised locally; other supported 3.10+ versions have not been separately tested.
 - This repository has not been initialized as Git, so `git_diff` returns a structured non-repository error here; it is tested against a temporary Git repository.
 - `.env` parsing is intentionally minimal. No dependency on a dotenv package.
 
