@@ -1,6 +1,6 @@
 # RepoPilot
 
-RepoPilot is a repository-level coding agent project focused on context engineering. **Current status: Day 4 symbol-aware static retrieval experiment.** It can inspect a Git repository, apply a constrained patch, run pytest, use failures to retry, and record the trajectory. B1 adds one initial lexical context; B2 adds Python AST definition signals to that static retrieval. B0 remains the naive baseline.
+RepoPilot is a repository-level coding agent project focused on context engineering. **Current status: Day 5 failure-driven dynamic context experiment.** It can inspect a Git repository, apply a constrained patch, run pytest, use failures to retry, and record the trajectory. B1 adds one initial lexical context; B2 adds Python AST definition signals; B3 uses failed tests to append newly relevant repository context. B0 remains the naive baseline.
 
 ## Architecture
 
@@ -125,13 +125,32 @@ The runner checks Day 3 model/config/baseline consistency, clones each exact bas
 
 The five-case comparison, including the regression ranking improvement and invoice cross-file miss, is in [Day 4 report](reports/day4_summary.md) and [raw results](reports/day4_results.csv).
 
+### B3 Failure-Driven Dynamic Context
+
+B3 starts with the exact B2 symbol-aware initial retrieval. Only a failed `run_tests` result can trigger a refresh. A deterministic extractor takes failed test nodes, pytest traceback files/lines/functions, exception types, and short assertion messages from that run. The retriever combines these signals with the original issue, applies fixed bonuses to B2 candidates, and prioritizes unseen files, unseen symbols, and new line ranges. Fully covered snippets and repeated failure signatures are skipped. B0/B1/B2 configurations and prior experiment results remain frozen.
+
+```text
+Issue -> B2 symbol-aware initial context -> repair Agent -> failed test
+      -> failure evidence -> dynamic reranking -> novel context -> Agent retry
+```
+
+The B3 context is an additional observation after the failed test tool reply. It describes evidence and candidate code without asserting a root cause. Each refresh is limited to 4,000 **estimated** tokens, with at most two refreshes per run. The initial B2 budget remains 8,000 estimated tokens. **Dynamic context is append-only and does not yet enforce a fixed total context budget.** B3 token usage therefore is not a budget-matched efficiency comparison with B2.
+
+After configuring `.env`, run B3 on the same five frozen case baselines:
+
+```powershell
+python scripts/run_day5.py --cases email discount regression greeting invoice
+```
+
+The runner checks B0/B1/B2/B3 Agent budgets, B2 initial retrieval settings, provider settings, and baseline commits before running. It writes trajectories, failure evidence, context transitions, and per-case metrics under `runs/day5/`, plus [Day 5 results](reports/day5_results.csv) and the [Day 5 report](reports/day5_summary.md). Final modified-file ranks and rescue metrics are computed only after each run; they never enter retrieval.
+
 Retrieval uses deterministic issue tokens, tracked file names, bounded ripgrep content hits, and a test/source name relation. It merges nearby ±20-line windows, caps snippets at 80 lines, and greedily packs by relevance score divided by estimated token cost under an 8,000-token budget. Estimated context tokens use `ceil(UTF-8 bytes / 4)`; they are **not** API token usage. `input_tokens` and `output_tokens` come from provider usage only and are `null` in experiment results if any model call omits usage. The case-level Hit@1/3/5 values compare retrieved files with finally modified files only after repair; those labels never enter retrieval.
 
 ## Current limitations
 
 - One real Day 2 repair smoke passed on the email toy case. The discount retry and regression scenarios have deterministic mock coverage. See [Day 2 report](reports/day2_summary.md).
 - The patch tool supports existing tracked files and standard unified Git diffs; it does not create, delete, or rename files.
-- There is no arbitrary shell, repository retrieval, symbol graph, context budget, or benchmark integration yet.
+- There is no arbitrary shell, dependency graph, fixed total dynamic context budget, or benchmark integration yet.
 - The lightweight `.env` reader supports simple `KEY=VALUE` lines, not the full dotenv format.
 - Shell detection uses the Windows parent process without extra packages, or optional `psutil` on other systems. It reports `unknown` if no reliable signal exists; `REPOPILOT_SHELL` can supply an explicit value.
 - `git_diff` reads working-tree changes only and requires the workspace itself to be the Git root.

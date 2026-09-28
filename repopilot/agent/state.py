@@ -49,6 +49,14 @@ class AgentState:
     current_diff: str | None = None
     last_full_pass_patch_count: int = -1
     diff_reviewed_patch_count: int = -1
+    dynamic_refresh_count: int = 0
+    failure_signatures_seen: set[str] = field(default_factory=set)
+    dynamic_context_items: list[dict] = field(default_factory=list)
+    dynamic_context_tokens: int = 0
+    dynamic_new_files: set[str] = field(default_factory=set)
+    dynamic_new_symbols: set[str] = field(default_factory=set)
+    failure_evidence_history: list[dict] = field(default_factory=list)
+    failure_to_new_context_latency_sec: list[float] = field(default_factory=list)
 
     def add_usage(self, usage: TokenUsage) -> None:
         if usage.input_tokens is None or usage.output_tokens is None:

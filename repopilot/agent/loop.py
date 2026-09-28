@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
+from typing import Protocol
 
 from repopilot.agent.prompts import system_prompt
 from repopilot.agent.state import AgentState, utc_now
@@ -20,6 +21,14 @@ from repopilot.tools.patch import ApplyPatch
 from repopilot.tools.policy import RepairPolicy
 from repopilot.tools.search import SearchCode
 from repopilot.tools.tests import RunTests
+
+
+class AgentEventHook(Protocol):
+    """Optional post-tool observer; default runs never install one."""
+
+    def on_tool_result(self, state: AgentState, logger: TrajectoryLogger, step: int, name: str, arguments: dict, result: ToolResult) -> None: ...
+
+    def after_step(self, state: AgentState, logger: TrajectoryLogger, step: int) -> None: ...
 
 
 def default_tools(workspace: Path, repair: bool = False, repair_policy: RepairPolicy | None = None) -> ToolRegistry:
@@ -41,6 +50,7 @@ class AgentLoop:
         max_patch_attempts: int = 5,
         max_test_runs: int = 5,
         repair_policy: RepairPolicy | None = None,
+        event_hook: AgentEventHook | None = None,
     ):
         if min(max_steps, max_tool_calls, max_patch_attempts, max_test_runs) < 1:
             raise ValueError("budgets must be positive")
@@ -53,6 +63,7 @@ class AgentLoop:
         self.max_tool_calls = max_tool_calls
         self.max_patch_attempts = max_patch_attempts
         self.max_test_runs = max_test_runs
+        self.event_hook = event_hook
 
     def run(self, issue: str, *, initial_context: str | None = None, initial_context_tokens: int = 0) -> AgentState:
         if not issue.strip():
@@ -136,8 +147,12 @@ class AgentLoop:
                         success=result.success, error=result.error, observation=result.observation(),
                         metadata=result.metadata, latency_sec=round(result.duration, 4),
                     )
+                    if self.event_hook is not None:
+                        self.event_hook.on_tool_result(state, logger, step, call.name, call.arguments, result)
                 if state.status == "budget_exhausted":
                     break
+                if self.event_hook is not None:
+                    self.event_hook.after_step(state, logger, step)
             else:
                 if self.repair and self._verified(state):
                     state.status = "tests_passed"

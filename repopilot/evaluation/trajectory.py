@@ -66,6 +66,14 @@ class TrajectoryLogger:
             "tests_passed": state.tests_passed,
             "last_test_result": state.last_test_result,
             "current_diff": state.current_diff,
+            "dynamic_refresh_count": state.dynamic_refresh_count,
+            "failure_signatures_seen": sorted(state.failure_signatures_seen),
+            "dynamic_context_items": state.dynamic_context_items,
+            "dynamic_context_tokens": state.dynamic_context_tokens,
+            "dynamic_new_files": sorted(state.dynamic_new_files),
+            "dynamic_new_symbols": sorted(state.dynamic_new_symbols),
+            "failure_evidence_history": state.failure_evidence_history,
+            "failure_to_new_context_latency_sec": state.failure_to_new_context_latency_sec,
         }
         (self.directory / "summary.json").write_text(
             json.dumps(_scrub(summary), ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
