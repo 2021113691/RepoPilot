@@ -1,6 +1,6 @@
 # RepoPilot
 
-RepoPilot is a repository-level coding agent project focused on context engineering. **Current status: Day 3 static retrieval experiment.** It can inspect a Git repository, apply a constrained patch, run pytest, use failures to retry, and record the trajectory. B1 adds one initial lexical repository context; the B0 repair loop remains the naive baseline.
+RepoPilot is a repository-level coding agent project focused on context engineering. **Current status: Day 4 symbol-aware static retrieval experiment.** It can inspect a Git repository, apply a constrained patch, run pytest, use failures to retry, and record the trajectory. B1 adds one initial lexical context; B2 adds Python AST definition signals to that static retrieval. B0 remains the naive baseline.
 
 ## Architecture
 
@@ -122,6 +122,8 @@ python scripts/run_day4.py --cases email discount regression greeting invoice
 ```
 
 The runner checks Day 3 model/config/baseline consistency, clones each exact baseline commit, and writes B2 trajectories plus `reports/day4_results.csv`. It also analyzes saved B1 trajectories for read calls that revisit an initially retrieved file or overlap an initially retrieved line range. B0 has no initial retrieval, so those ratios are recorded as N/A. This analysis only measures `read_file` behavior; it never changes tool permissions or caches observations.
+
+The five-case comparison, including the regression ranking improvement and invoice cross-file miss, is in [Day 4 report](reports/day4_summary.md) and [raw results](reports/day4_results.csv).
 
 Retrieval uses deterministic issue tokens, tracked file names, bounded ripgrep content hits, and a test/source name relation. It merges nearby ±20-line windows, caps snippets at 80 lines, and greedily packs by relevance score divided by estimated token cost under an 8,000-token budget. Estimated context tokens use `ceil(UTF-8 bytes / 4)`; they are **not** API token usage. `input_tokens` and `output_tokens` come from provider usage only and are `null` in experiment results if any model call omits usage. The case-level Hit@1/3/5 values compare retrieved files with finally modified files only after repair; those labels never enter retrieval.
 
