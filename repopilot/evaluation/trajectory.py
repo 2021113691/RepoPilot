@@ -56,6 +56,7 @@ class TrajectoryLogger:
             "repair_mode": state.repair_mode,
             "patch_count": state.patch_count,
             "repair_attempts": state.repair_attempts,
+            "protected_patch_rejections": state.protected_patch_rejections,
             "test_runs": state.test_runs,
             "test_failures": state.test_failures,
             "changed_loc": state.changed_loc,

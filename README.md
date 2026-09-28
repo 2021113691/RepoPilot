@@ -73,6 +73,12 @@ Other cases: `discount` and `regression`. Direct repair on a clean Git root is a
 
 File paths are resolved against the workspace and rejected when they escape it, including symlink targets. Credential files such as `.env` are excluded from repository tools. Repair starts only from a clean Git baseline. `apply_patch` validates the complete diff with `git apply --check` and applies it without `--reject`; it never stages or commits. `run_tests` builds a fixed argument list for `python -m pytest` with `shell=False`, validates the path or node ID, enforces a timeout, and removes credentials from the child environment. Test failures return compact evidence to the model while longer sanitized output remains in the trajectory. No arbitrary shell tool is exposed.
 
+## Repair Safety
+
+Repair targets are governed by a configurable `RepairPolicy`; toy repair benchmarks treat test files as read-only verification oracles. By default, paths under `tests/` or `test/`, including nested directories, and Python files named `test_*.py` or `*_test.py` are protected. Callers can supply `AgentLoop(..., repair_policy=RepairPolicy(...))` to change protected patterns or restrict writes with `writable_globs`. Protected patterns always take precedence over the writable list.
+
+Before writing, `apply_patch` checks every target against the workspace boundary, symlink and credential restrictions, the repair policy, and Git tracking. A denied target rejects the whole patch with a `protected_path` or `not_writable` observation; the Agent can then patch an allowed source file. The trajectory records a `patch_rejected` event and the summary counts protected-path rejections.
+
 Repair summaries record patch attempts and successful patches, test runs and failures, modified files, added/deleted lines, changed LOC, model/tool calls, tokens, and latency. The full suite must pass after the latest patch before the agent reports `tests_passed`.
 
 ## Current limitations

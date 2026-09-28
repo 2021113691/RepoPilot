@@ -37,6 +37,7 @@ class AgentState:
     repair_mode: bool = False
     patch_count: int = 0
     repair_attempts: int = 0
+    protected_patch_rejections: int = 0
     test_runs: int = 0
     test_failures: int = 0
     changed_loc: int = 0

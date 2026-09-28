@@ -121,3 +121,31 @@ def test_verified_repair_at_last_model_step_keeps_success(tmp_path):
     state = AgentLoop(backend, workspace, runs_dir=tmp_path / "runs", repair=True, max_steps=1).run(case.issue)
     assert state.status == "tests_passed"
     assert "Verified repair at the model-step limit" in state.final_answer
+
+
+def test_mock_agent_recovers_after_protected_test_patch(tmp_path):
+    case, workspace = prepare_case("email", tmp_path / "runs")
+    test_path = workspace / "tests/test_email_utils.py"
+    original_test = test_path.read_text(encoding="utf-8")
+    changed_test = original_test.replace("User@example.com", "User@Example.COM")
+    assert changed_test != original_test
+    source_path = workspace / "app/email_utils.py"
+    original_source = source_path.read_text(encoding="utf-8")
+    fixed_source = original_source.replace("{domain}", "{domain.lower()}")
+    backend = scripted(
+        ("apply_patch", {"patch": patch_for("tests/test_email_utils.py", original_test, changed_test)}),
+        ("apply_patch", {"patch": patch_for("app/email_utils.py", original_source, fixed_source)}),
+        ("git_diff", {}),
+        ("run_tests", {}),
+    )
+    state = AgentLoop(backend, workspace, runs_dir=tmp_path / "runs", repair=True).run(case.issue)
+    assert state.status == "tests_passed", state.final_answer
+    assert state.patch_count == 1 and state.repair_attempts == 2
+    assert state.protected_patch_rejections == 1
+    assert test_path.read_text(encoding="utf-8") == original_test
+    assert "read-only verification oracles" in backend.requests[1][0][-1]["content"]
+    directory = tmp_path / "runs" / state.task_id
+    events = [json.loads(line) for line in (directory / "trajectory.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert any(event["event"] == "patch_rejected" and event["reason"] == "protected_path" and event["paths"] == ["tests/test_email_utils.py"] for event in events)
+    summary = json.loads((directory / "summary.json").read_text(encoding="utf-8"))
+    assert summary["protected_patch_rejections"] == 1

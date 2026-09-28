@@ -17,14 +17,15 @@ from repopilot.tools.base import ToolRegistry, ToolResult
 from repopilot.tools.files import ListFiles, ReadFile
 from repopilot.tools.git import GitDiff
 from repopilot.tools.patch import ApplyPatch
+from repopilot.tools.policy import RepairPolicy
 from repopilot.tools.search import SearchCode
 from repopilot.tools.tests import RunTests
 
 
-def default_tools(workspace: Path, repair: bool = False) -> ToolRegistry:
+def default_tools(workspace: Path, repair: bool = False, repair_policy: RepairPolicy | None = None) -> ToolRegistry:
     tools = [ListFiles(workspace), SearchCode(workspace), ReadFile(workspace), GitDiff(workspace)]
     if repair:
-        tools.extend([ApplyPatch(workspace), RunTests(workspace)])
+        tools.extend([ApplyPatch(workspace, policy=repair_policy), RunTests(workspace)])
     return ToolRegistry(tools)
 
 
@@ -39,13 +40,14 @@ class AgentLoop:
         repair: bool = False,
         max_patch_attempts: int = 5,
         max_test_runs: int = 5,
+        repair_policy: RepairPolicy | None = None,
     ):
         if min(max_steps, max_tool_calls, max_patch_attempts, max_test_runs) < 1:
             raise ValueError("budgets must be positive")
         self.backend = backend
         self.workspace = workspace.resolve(strict=True)
         self.repair = repair
-        self.tools = default_tools(self.workspace, repair)
+        self.tools = default_tools(self.workspace, repair, repair_policy)
         self.runs_dir = runs_dir
         self.max_steps = max_steps
         self.max_tool_calls = max_tool_calls
@@ -183,6 +185,11 @@ class AgentLoop:
                 state.last_full_pass_patch_count = -1
                 state.diff_reviewed_patch_count = -1
             logger.event("patch_apply", step=step, success=result.success, files=result.metadata.get("patch_files", []), error=result.error, changed_loc=state.changed_loc)
+            reason = result.metadata.get("error_code")
+            if reason in {"protected_path", "not_writable"}:
+                if reason == "protected_path":
+                    state.protected_patch_rejections += 1
+                logger.event("patch_rejected", step=step, reason=reason, paths=result.metadata.get("paths", []))
         elif name == "git_diff" and result.success and not arguments.get("stat", False):
             state.current_diff = result.content
             state.diff_reviewed_patch_count = state.patch_count

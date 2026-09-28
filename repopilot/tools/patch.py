@@ -8,6 +8,7 @@ import subprocess
 from pathlib import Path, PurePosixPath
 
 from .base import Tool, ToolResult
+from .policy import RepairPolicy
 
 
 class ApplyPatch(Tool):
@@ -22,6 +23,10 @@ class ApplyPatch(Tool):
         "properties": {"patch": {"type": "string", "description": "Unified Git diff text, including diff --git and hunk headers"}},
         "required": ["patch"],
     }
+
+    def __init__(self, workspace: Path, policy: RepairPolicy | None = None):
+        super().__init__(workspace)
+        self.policy = policy if policy is not None else RepairPolicy()
 
     def _execute(self, patch: str) -> ToolResult:
         if not isinstance(patch, str) or not patch.strip() or len(patch) > 50_000:
@@ -40,6 +45,7 @@ class ApplyPatch(Tool):
         if top.returncode != 0 or Path(top.stdout.strip()).resolve() != self.workspace:
             return ToolResult(False, error="structured patch failure: workspace must be a Git repository root")
         paths = []
+        relative_targets = []
         for name in targets:
             if (self.workspace / name).is_symlink():
                 return ToolResult(False, error=f"structured patch failure: symlink target is unsupported: {name}")
@@ -47,11 +53,33 @@ class ApplyPatch(Tool):
                 path = self.resolve_path(name)
             except ValueError as exc:
                 return ToolResult(False, error=f"structured patch failure: {exc}")
+            relative = self.relative(path)
+            if relative in relative_targets:
+                return ToolResult(False, error="structured patch failure: duplicate resolved file in patch")
+            relative_targets.append(relative)
             if not path.is_file() or path.is_symlink():
                 return ToolResult(False, error=f"structured patch failure: target must be an existing regular file: {name}")
+            paths.append(path)
+        rejected = [self.policy.check(name) for name in relative_targets]
+        rejected = [(name, reason) for name, reason in rejected if reason is not None]
+        if rejected:
+            reason = "protected_path" if any(code == "protected_path" for _, code in rejected) else "not_writable"
+            denied = [name for name, _ in rejected]
+            guidance = (
+                "Test files are read-only verification oracles in this repair policy. Patch source files instead."
+                if reason == "protected_path" else
+                "These paths are outside the configured writable targets. Patch an allowed source file instead."
+            )
+            return ToolResult(
+                False,
+                "Patch rejected by repair policy. No files were changed.\n"
+                + "Rejected paths:\n" + "".join(f"- {name}\n" for name in denied) + guidance,
+                error=reason,
+                metadata={"error_code": reason, "paths": denied, "rejected_paths": rejected},
+            )
+        for name in relative_targets:
             if self._git(git, "ls-files", "--error-unmatch", "--", name).returncode != 0:
                 return ToolResult(False, error=f"structured patch failure: target is not tracked: {name}")
-            paths.append(path)
         before = {path: path.read_bytes() for path in paths}
         check = self._git(git, "apply", "--whitespace=error", "--check", "-", input=patch)
         if check.returncode != 0:
@@ -77,7 +105,7 @@ class ApplyPatch(Tool):
             if plus.isdigit() and minus.isdigit():
                 added += int(plus)
                 deleted += int(minus)
-        if not set(targets).issubset(set(modified)):
+        if not set(relative_targets).issubset(set(modified)):
             for path, data in before.items():
                 path.write_bytes(data)
             return ToolResult(False, error="structured patch failure: expected file change was missing; target files restored")
@@ -85,7 +113,7 @@ class ApplyPatch(Tool):
             True,
             f"Applied patch to {', '.join(targets)}. Inspect the current diff and run tests.\n" + diff.stdout[:6000],
             metadata={
-                "patch_files": targets,
+                "patch_files": relative_targets,
                 "files_modified": modified,
                 "added_lines": added,
                 "deleted_lines": deleted,
@@ -114,7 +142,7 @@ class ApplyPatch(Tool):
                 raise ValueError("only updates to one existing path per file are supported")
             name = header.group(1)
             posix = PurePosixPath(name)
-            if name.startswith("/") or "\\" in name or ":" in name or any(part in ("", ".", "..") for part in name.split("/")) or posix.is_absolute():
+            if name.startswith("/") or "\\" in name or ":" in name or any(part in ("", "..") for part in name.split("/")) or posix.is_absolute():
                 raise ValueError("unsafe patch path")
             if name in targets:
                 raise ValueError("duplicate file in patch")
