@@ -36,6 +36,28 @@ FROZEN_METHOD_PATHS = (
 )
 
 
+class TransportRetryBackend:
+    """Experiment-only retry for identical requests lost to transport timeouts."""
+
+    def __init__(self, backend: OpenAICompatibleBackend):
+        self.base = RateLimitRetryBackend(backend)
+        self.config = backend.config
+
+    def chat(self, messages: list[dict], tools: list[dict] | None = None):
+        for delay in (0, 5, 20):
+            if delay:
+                time.sleep(delay)
+            try:
+                return self.base.chat(messages, tools)
+            except (TimeoutError, RuntimeError) as exc:
+                text = str(exc)
+                if not isinstance(exc, TimeoutError) and "connection failed" not in text:
+                    raise
+                if delay == 20:
+                    raise
+        raise AssertionError("unreachable")
+
+
 def frozen_settings(config_b2: dict, config_b3: dict, model: BackendConfig) -> None:
     if config_b2["agent"] != config_b3["agent"]:
         raise ValueError("B2/B3 Agent budgets differ")
@@ -58,7 +80,7 @@ def _existing_rows(path: Path) -> list[dict]:
 
 
 def _paired_b2_row(rows: list[dict], case_id: str, runs_dir: Path, baseline_commit: str, model_record: dict, config_b2: dict) -> dict:
-    matching = [row for row in rows if row["case_id"] == case_id and row["method"] == "b2_symbol" and row["failure_category"] != "provider_rate_limited"]
+    matching = [row for row in rows if row["case_id"] == case_id and row["method"] == "b2_symbol" and row["failure_category"] not in {"provider_rate_limited", "provider_failure"}]
     if len(matching) != 1:
         raise ValueError(f"B3 requires one evaluable B2 run for {case_id}")
     row = matching[0]
@@ -69,7 +91,7 @@ def _paired_b2_row(rows: list[dict], case_id: str, runs_dir: Path, baseline_comm
 
 
 def execute_method(
-    case: ChallengeCase, method: str, config: dict, backend: RateLimitRetryBackend,
+    case: ChallengeCase, method: str, config: dict, backend,
     baseline: Path, baseline_commit: str, runs_dir: Path,
     expected_initial: dict | None = None,
 ) -> Path:
@@ -135,7 +157,7 @@ def main() -> int:
     b2 = json.loads((ROOT / "experiments/b2_symbol.yaml").read_text(encoding="utf-8"))
     b3 = json.loads((ROOT / "experiments/b3_dynamic.yaml").read_text(encoding="utf-8"))
     frozen_settings(b2, b3, model_config)
-    qualifications = qualify_all(args.runs_dir, args.case)
+    qualifications = qualify_all(args.runs_dir, list(CASES))
     _write_csv([item.as_dict() for item in qualifications], args.qualification_output)
     if any(not item.qualified for item in qualifications):
         raise ValueError("one or more challenge cases failed offline qualification")
@@ -148,7 +170,7 @@ def main() -> int:
         existing = [row for row in rows if row["case_id"] == case_id and row["method"] == method]
         if len(existing) > 1:
             raise ValueError(f"duplicate experiment rows: {case_id} {method}")
-        if existing and existing[0]["failure_category"] != "provider_rate_limited":
+        if existing and existing[0]["failure_category"] not in {"provider_rate_limited", "provider_failure"}:
             continue
         case = CASES[case_id]
         baseline, commit = prepare_baseline(case, args.runs_dir)
@@ -156,7 +178,7 @@ def main() -> int:
         if method == "b3_dynamic":
             b2_row = _paired_b2_row(rows, case_id, args.runs_dir, commit, _model_record(model_config), b2)
             expected = json.loads((args.runs_dir / b2_row["task_id"] / "retrieval.json").read_text(encoding="utf-8"))
-        directory = execute_method(case, method, config, RateLimitRetryBackend(OpenAICompatibleBackend(model_config)), baseline, commit, args.runs_dir, expected)
+        directory = execute_method(case, method, config, TransportRetryBackend(OpenAICompatibleBackend(model_config)), baseline, commit, args.runs_dir, expected)
         # Evaluation labels are loaded only after AgentLoop and trajectory writes finish.
         from repopilot.evaluation.challenge import load_gold
         row = score_run(directory, case.issue, load_gold()[case_id])
@@ -164,8 +186,8 @@ def main() -> int:
         rows.sort(key=lambda item: (list(CASES).index(item["case_id"]), item["method"]))
         _write_csv(rows, args.output)
         print(json.dumps({key: row[key] for key in ("case_id", "method", "status", "dynamic_refreshes", "dynamic_bug_file_rank", "dynamic_context_used", "dynamic_rescue", "task_id")}, ensure_ascii=False), flush=True)
-        if row["failure_category"] == "provider_rate_limited":
-            raise RuntimeError("provider rate limited after bounded retries; resume later")
+        if row["failure_category"] in {"provider_rate_limited", "provider_failure"}:
+            raise RuntimeError("provider request failed; checkpoint saved for --resume")
     return 0
 
 

@@ -14,7 +14,7 @@ from repopilot.models.base import ModelResponse
 from repopilot.models.mock import MockBackend
 from repopilot.models.openai_compatible import BackendConfig
 from scripts.run_day4 import _write_csv
-from scripts.run_day5_challenge import execute_method
+from scripts.run_day5_challenge import TransportRetryBackend, execute_method
 
 
 def test_five_cases_qualify_without_model(tmp_path):
@@ -126,3 +126,30 @@ def test_provider_failure_excluded_and_results_csv(tmp_path):
         saved = next(csv.DictReader(stream))
     assert saved["failure_category"] == "provider_rate_limited"
     assert saved["novel_file_clues"] == "[]"
+    summary_path = tmp_path / "run" / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["error"] = "TimeoutError: The read operation timed out"
+    summary_path.write_text(json.dumps(summary), encoding="utf-8")
+    timeout_row = score_run(tmp_path / "run", "OrderService fails", {"expected_bug_file": "engine/adjustments.py"})
+    assert not timeout_row["evaluable"] and timeout_row["failure_category"] == "provider_failure"
+
+
+def test_transport_retry_repeats_identical_request(monkeypatch):
+    monkeypatch.setattr("scripts.run_day5_challenge.time.sleep", lambda seconds: None)
+
+    class FlakyBackend:
+        config = BackendConfig("https://api-inference.modelscope.cn/v1", "unused", "mock")
+
+        def __init__(self):
+            self.calls = []
+
+        def chat(self, messages, tools=None):
+            self.calls.append((messages, tools))
+            if len(self.calls) == 1:
+                raise TimeoutError("read timed out")
+            return ModelResponse(model="mock", content="ok")
+
+    flaky = FlakyBackend()
+    messages = [{"role": "user", "content": "fix"}]
+    assert TransportRetryBackend(flaky).chat(messages, []).content == "ok"
+    assert flaky.calls == [(messages, []), (messages, [])]

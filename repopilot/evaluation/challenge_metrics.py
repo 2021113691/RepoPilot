@@ -45,6 +45,8 @@ def classify_failure(status: str, error: str | None, success: bool, events: list
         return ""
     if error and "HTTP 429" in error:
         return "provider_rate_limited"
+    if status == "model_error" and error and any(term in error for term in ("Model API", "TimeoutError", "timed out", "connection failed", "Invalid model response")):
+        return "provider_failure"
     if status == "tool_error":
         return "tool_failure"
     full_pass = any(event.get("event") == "test_run" and event.get("success") and event.get("scope") is None for event in events)
@@ -119,7 +121,7 @@ def score_run(directory: Path, issue: str, gold: dict) -> dict:
     category = classify_failure(summary["status"], summary.get("error"), success, events, bug_file, initial_rank, dynamic_rank, context_used)
     return {
         "case_id": summary["case_id"], "method": summary["method"], "success": success,
-        "status": summary["status"], "error": summary.get("error"), "evaluable": category != "provider_rate_limited",
+        "status": summary["status"], "error": summary.get("error"), "evaluable": category not in {"provider_rate_limited", "provider_failure"},
         "input_tokens": summary["input_tokens"] if summary["token_usage_complete"] else None,
         "output_tokens": summary["output_tokens"] if summary["token_usage_complete"] else None,
         "llm_calls": summary["llm_calls"], "tool_calls": summary["tool_calls"],
