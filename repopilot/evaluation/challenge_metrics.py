@@ -52,6 +52,9 @@ def classify_failure(status: str, error: str | None, success: bool, events: list
     full_pass = any(event.get("event") == "test_run" and event.get("success") and event.get("scope") is None for event in events)
     if error and "maximum test runs reached" in error and full_pass:
         return "verification_budget_failure"
+    patches = [event for event in events if event.get("event") == "patch_apply"]
+    if error and "maximum patch attempts reached" in error and patches and all(not event.get("success") for event in patches):
+        return "repair_reasoning_failure"
     if dynamic_rank is not None and not context_used:
         return "context_utilization_failure"
     if (initial_rank is None or initial_rank > 3) and dynamic_rank is None and not any(bug_file in _tool_files(event) for event in events):

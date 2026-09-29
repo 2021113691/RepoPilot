@@ -9,7 +9,7 @@ import pytest
 from repopilot.context.lexical import ContextItem, RetrievedContext
 from repopilot.evaluation.challenge import load_gold, prepare_baseline, qualify_all
 from repopilot.evaluation.challenge_cases import CASES, ChallengeCase
-from repopilot.evaluation.challenge_metrics import initial_context_equal, rank_improvement, score_run
+from repopilot.evaluation.challenge_metrics import classify_failure, initial_context_equal, rank_improvement, score_run
 from repopilot.models.base import ModelResponse
 from repopilot.models.mock import MockBackend
 from repopilot.models.openai_compatible import BackendConfig
@@ -153,3 +153,8 @@ def test_transport_retry_repeats_identical_request(monkeypatch):
     messages = [{"role": "user", "content": "fix"}]
     assert TransportRetryBackend(flaky).chat(messages, []).content == "ok"
     assert flaky.calls == [(messages, []), (messages, [])]
+
+
+def test_rejected_patch_budget_is_repair_failure_even_with_unused_context():
+    events = [{"event": "patch_apply", "success": False}, {"event": "patch_apply", "success": False}]
+    assert classify_failure("budget_exhausted", "maximum patch attempts reached", False, events, "core/canonical.py", None, 1, False) == "repair_reasoning_failure"
