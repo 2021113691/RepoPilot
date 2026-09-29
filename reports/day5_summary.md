@@ -2,11 +2,11 @@
 
 ## Goal
 
-Test whether a failed `run_tests` result can change repository relevance after B2's initial, issue-based retrieval misses a dependency. B3 adds execution-feedback-driven context to the same repair Agent. The five real API runs were attempted, but the provider returned persistent HTTP 429 after the first case; the real B3 comparison is incomplete.
+Test whether a failed `run_tests` result can change repository relevance after B2's initial, issue-based retrieval misses a dependency. B3 adds execution-feedback-driven context to the same repair Agent. All five real B3 cases have now completed: four verified repairs and one run that exhausted its test budget.
 
 ## Frozen B0/B1/B2
 
-B0/B1/B2 code, prompts, retrieval weights, configurations, and prior results were left unchanged. B3 calls the existing `SymbolRetriever` with the same issue and 8,000 estimated-token budget before the Agent starts. The B3 runner checks B0/B1/B2/B3 Agent limits, B2 initial retrieval settings, model settings, and each frozen Day 4 baseline commit. Only B3 was run. Its new hook is absent from B0/B1/B2 execution.
+B0/B1/B2 code, prompts, retrieval weights, configurations, and prior results were left unchanged. B3 calls the existing `SymbolRetriever` with the same issue and 8,000 estimated-token budget before the Agent starts. The B3 runner checks B0/B1/B2/B3 Agent limits, B2 initial retrieval settings, model settings, and each frozen Day 4 baseline commit. Only B3 was run. Its new hook is absent from B0/B1/B2 execution. An artifact audit confirmed that **all five B3 `retrieval.json` files are exactly equal to the corresponding frozen B2 initial retrieval files**, and all baseline commits match.
 
 ## Failure Evidence
 
@@ -42,49 +42,52 @@ The issue points to `app/service.py`, while the defect is in `internal/pricing.p
 
 ## Real B3 Experiment
 
-Five runs were attempted using the same ModelScope `Qwen/Qwen3.8-Flash-Next` settings and clean Day 4 case baselines. `email` completed with verified tests and no dynamic trigger. The first `discount` attempt made nine tool calls and had two passing test runs before HTTP 429 interrupted it. `regression`, `greeting`, and `invoice` received HTTP 429 on their first model call. A bounded 15-second and 45-second retry on a fresh `discount` run still returned HTTP 429. The runner now stops on persistent 429 and supports `--resume`; the [results CSV](day5_results.csv) retains one latest row per case. Earlier attempt trajectories remain under ignored `runs/day5/`.
+Five real runs completed using the same ModelScope `Qwen/Qwen3.8-Flash-Next` settings and clean Day 4 case baselines. The earlier HTTP 429 interruptions were infrastructure failures; `--resume` preserved the already completed `email` run and ran the four remaining cases. The [results CSV](day5_results.csv) contains one completed run per case. Earlier interrupted trajectories remain under ignored `runs/day5/`; no completed run was repeated to select a favorable outcome.
 
 | Case | Status | Input tokens | Tools | Reads | Tests | Latency (s) | Dynamic refreshes |
 |---|---|---:|---:|---:|---:|---:|---:|
 | email | verified pass | 30,712 | 15 | 6 | 4 | 41.11 | 0 |
-| discount | HTTP 429 | unavailable | 0 | 0 | 0 | 62.20 | 0 |
-| regression | HTTP 429 | unavailable | 0 | 0 | 0 | 1.65 | 0 |
-| greeting | HTTP 429 | unavailable | 0 | 0 | 0 | 1.68 | 0 |
-| invoice | HTTP 429 | unavailable | 0 | 0 | 0 | 1.41 | 0 |
+| discount | test budget exhausted | 49,145 | 17 | 5 | 5 | 93.75 | 1 |
+| regression | verified pass | 18,236 | 9 | 4 | 2 | 39.00 | 0 |
+| greeting | verified pass | 21,277 | 10 | 4 | 3 | 34.43 | 0 |
+| invoice | verified pass | 24,534 | 10 | 3 | 3 | 36.49 | 0 |
 
-The displayed `discount` row is its latest retry. The earlier partial trajectory is preserved but is not a completed comparable run.
+`discount` was the only case with a failed test and dynamic refresh. The second accepted patch subsequently passed targeted and full pytest, but the Agent used its five test runs before inspecting a non-stat diff. When it finally requested the full diff, another full pytest was required by the existing verification policy and the test-run budget was exhausted. Its final patch and passing tests are visible in the trajectory, but the run status is correctly **not** `tests_passed`.
 
 ## B2/B3 Comparison
 
 | Metric | Frozen B2 | B3 observed |
 |---|---:|---:|
-| Verified success | 5/5 | 1/1 completed; 4 provider-limited |
-| Email input tokens | 30,927 | 30,712 |
-| Email tool calls | 14 | 15 |
-| Email read calls | 3 | 6 |
-| Email test runs | 5 | 4 |
-| Email latency (s) | 51.05 | 41.11 |
-| Email dynamic refreshes | N/A | 0 |
-| Dynamic rescue | N/A | not observed in completed real runs |
+| Verified success | 5/5 | 4/5 |
+| Mean input tokens | 29,903 | 28,781 |
+| Mean tool calls | 13.2 | 12.2 |
+| Mean read calls | 4.2 | 4.4 |
+| Mean test runs | 3.4 | 3.4 |
+| Mean latency (s) | 48.99 | 48.96 |
+| Initial modified-file Hit@1/3/5 | 4/5, 4/5, 5/5 | 4/5, 4/5, 5/5 |
+| Dynamic refreshes | N/A | 1 total; 1/5 cases |
+| Dynamic rescue | N/A | 0/5 |
 
-Email had no dynamic refresh, so its difference reflects ordinary run variation, not a measured retrieval benefit. B3 is allowed up to 4,000 extra estimated context tokens per refresh, so input-token efficiency is not a budget-matched comparison with B2. No cross-case B3 average or causal claim is warranted.
+The mean B3 metrics include one incomplete repair and should not be read as an efficiency improvement. B3 is allowed up to 4,000 extra estimated context tokens per refresh, so the token comparison is not budget matched. One model run per case also cannot isolate a causal effect from model variation. The observed real experiment did **not** demonstrate a dynamic rescue.
 
 ## Invoice Case Study
 
-Frozen B2 initial ranking was `app/invoice.py`, `app/__init__.py`, `tests/test_invoice.py`, `app/tax.py`; the B2 finally modified file, `app/tax.py`, ranked fourth. B3 reproduced that same initial ranking. The B3 invoice request then received HTTP 429 before any tool call, so there was no first test failure, `FailureEvidence`, dynamic rank, final modified file, or rescue result to measure. The missing values remain empty in the CSV. The mock demonstrates that a traceback can move a previously absent dependency to the top, but it cannot substitute for invoice's unfinished real run.
+Frozen B2 initial ranking was `app/invoice.py`, `app/__init__.py`, `tests/test_invoice.py`, `app/tax.py`; the finally modified file, `app/tax.py`, ranked fourth. B3 reproduced exactly the same initial retrieval. The Agent read three files, patched `app/tax.py`, and all three test runs passed, reaching `tests_passed` with 24,534 input tokens, 10 tool calls, and 36.49 seconds. There was no first test failure, so no `FailureEvidence`, dynamic rank, or dynamic rescue. The cross-file issue was resolved through the Agent's own inspection. B3's failure-only trigger cannot change context when the Agent succeeds on the first hypothesis.
 
 ## Non-trigger Cases
 
-Email passed with zero refreshes despite four test runs; none failed. The first discount attempt also logged two passing tests and zero refreshes before the provider error. The other three runs never reached a test. Thus no real run showed an unnecessary failure-triggered context injection, but trigger precision across all five real cases remains unmeasured.
+Email, regression, greeting, and invoice had no failed test and correctly recorded zero dynamic refreshes. They made 4, 2, 3, and 3 test runs respectively. Discount had one failed targeted test run and one refresh. Thus the observed trigger precision was 1/1 eligible failed test and 0/4 cases without a failed test; this small sample does not establish general precision.
 
 ## Context Transition Analysis
 
-The mock transition is the only observed failure-driven rank shift: `internal/pricing.py` went from absent in initial context to rank 1 in the injected context. The mock's final patch touched service and pricing, and pricing was newly introduced dynamically, so its retrospective `dynamic_modified_file_hit` and `dynamic_rescue` are true. Real `email` had zero transitions; real invoice has no dynamic rank. The runner computes modified-file rank, `dynamic_modified_file_hit`, and `dynamic_rescue` only after an Agent run. It also saves per-refresh before/after Top3, selected scores/reasons, new files/symbols/snippets, failure signatures, context tokens, failure-to-context latency, and same-file/overlap re-reads. A retrieval with no selected novel snippet is flagged separately; none was observed in a completed real run. Reads are measured, not suppressed.
+The mock demonstrates a true shift from absent `internal/pricing.py` to dynamic rank 1. In the real discount run, initial Top2 was `app/pricing.py`, `tests/test_pricing.py`. A failed targeted test reported `assert None == 10.0` and `assert None == 1.03`, with traceback lines only in the test file. The 311-token refresh selected `app/__init__.py`, `pyproject.toml`, then a new range of `app/pricing.py`. The finally modified pricing file moved from initial rank 1 to dynamic rank 3; the two new files were not modified and did not supply a new bug location. `dynamic_modified_file_hit` and `dynamic_rescue` were both false. The refresh may have helped inspect changed pricing code, but the trajectory cannot isolate its contribution from the failed test observation itself. No refresh selected zero snippets; this case still illustrates that *novel* context can have limited value.
+
+The runner computes modified-file ranks and rescue metrics only after each run. It saves per-refresh Top3, scores/reasons, new files/symbols/snippets, signatures, context tokens, failure-to-context latency, and same-file/overlap re-reads. B3 made 19 same-file and 19 overlapping reads across 22 read calls; reads were measured, not suppressed.
 
 ## Limitations
 
-The five toy repositories are small, the model runs are nondeterministic despite temperature zero, and provider rate limiting prevented a real five-case B3 comparison. The append-only context can grow beyond the initial budget; the 4,000-token bound is per refresh and estimated with `ceil(UTF-8 bytes / 4)`. Traceback parsing depends on pytest output shape, and missing function names remain unknown. New-file priority can include distractors. Range-based deduplication is approximate after code edits. Modified-file hit is only one measure of value; a dependency snippet can help even if the final patch stays in the initial file.
+The five toy repositories are small, and one run per case with temperature zero does not eliminate provider nondeterminism. Four cases did not exercise dynamic retrieval; the only real refresh did not rescue a missed file and the Agent exhausted its test budget after tests had passed. The append-only context can grow beyond the initial budget; the 4,000-token bound is per refresh and estimated with `ceil(UTF-8 bytes / 4)`. Traceback parsing depends on pytest output shape, and missing function names remain unknown. New-file priority can promote distractors before a high-scoring range in a known source file, as discount shows. Range-based deduplication is approximate after code edits. Modified-file hit is only one measure of value; a dependency snippet can help even if the final patch stays in the initial file.
 
 ## Day 6 Entry
 
-The core Day 5 implementation gate is met by deterministic extraction and ranking, B2 initial retrieval reuse, failed-test-only trigger, novel context with budget and deduplication, the mock rescue, and passing tests. The **real experiment gate remains open** because four B3 runs are provider-limited. Resume the same five-case evaluation when the API permits, then assess whether fixed-total-budget replacement and structured context state are justified for Day 6.
+The core Day 5 implementation gate is met by deterministic extraction and ranking, exact B2 initial retrieval reuse, failed-test-only trigger, novel context with budget and deduplication, the mock rescue, 82 passing tests, and five completed real B3 runs. The real evidence is mixed: 4/5 verified repairs, 1/5 refreshes, and 0/5 dynamic rescues. Before claiming a dynamic retrieval benefit, add harder cases where the initial context misses a dependency and a first patch actually fails. The discount trajectory also suggests reviewing verification scheduling separately. Fixed-total-budget replacement and structured context state remain candidate Day 6 work, with no benefit claimed yet.

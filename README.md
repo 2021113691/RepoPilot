@@ -144,6 +144,8 @@ python scripts/run_day5.py --cases email discount regression greeting invoice
 
 The runner checks B0/B1/B2/B3 Agent budgets, B2 initial retrieval settings, provider settings, and baseline commits before running. It writes trajectories, failure evidence, context transitions, and per-case metrics under `runs/day5/`, plus [Day 5 results](reports/day5_results.csv) and the [Day 5 report](reports/day5_summary.md). Final modified-file ranks and rescue metrics are computed only after each run; they never enter retrieval.
 
+The five real B3 runs completed with **4/5 verified repairs**. One failed test in `discount` triggered a refresh, but it did not introduce a new repair file; that run exhausted its test budget after later tests passed. `invoice` repaired the cross-file defect without a failed test, so no dynamic refresh occurred. The mock fixture demonstrates a true dynamic rescue; the real five-case set did not.
+
 Retrieval uses deterministic issue tokens, tracked file names, bounded ripgrep content hits, and a test/source name relation. It merges nearby ±20-line windows, caps snippets at 80 lines, and greedily packs by relevance score divided by estimated token cost under an 8,000-token budget. Estimated context tokens use `ceil(UTF-8 bytes / 4)`; they are **not** API token usage. `input_tokens` and `output_tokens` come from provider usage only and are `null` in experiment results if any model call omits usage. The case-level Hit@1/3/5 values compare retrieved files with finally modified files only after repair; those labels never enter retrieval.
 
 ## Current limitations
