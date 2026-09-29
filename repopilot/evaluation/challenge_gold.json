@@ -1,0 +1,32 @@
+{
+  "c01_service_pricing": {
+    "expected_bug_file": "engine/adjustments.py",
+    "expected_bug_symbol": "apply_rate",
+    "dependency_pattern": "service → pricing adjustment",
+    "expected_failure_clue": "engine/adjustments.py"
+  },
+  "c02_parser_normalizer": {
+    "expected_bug_file": "core/canonical.py",
+    "expected_bug_symbol": "clean_atom",
+    "dependency_pattern": "parser → normalizer",
+    "expected_failure_clue": "core/canonical.py"
+  },
+  "c03_controller_serializer": {
+    "expected_bug_file": "wire/encoding.py",
+    "expected_bug_symbol": "pack_number",
+    "dependency_pattern": "controller → serializer",
+    "expected_failure_clue": "wire/encoding.py"
+  },
+  "c04_invoice_rounding": {
+    "expected_bug_file": "mathops/quantize.py",
+    "expected_bug_symbol": "quantize_money",
+    "dependency_pattern": "invoice → tax → rounding",
+    "expected_failure_clue": "mathops/quantize.py"
+  },
+  "c05_cache_key": {
+    "expected_bug_file": "infra/key_codec.py",
+    "expected_bug_symbol": "make_key",
+    "dependency_pattern": "catalog service → cache key builder",
+    "expected_failure_clue": "tests/test_storage_keys.py"
+  }
+}

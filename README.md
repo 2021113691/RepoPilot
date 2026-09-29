@@ -148,11 +148,27 @@ The five real B3 runs completed with **4/5 verified repairs**. One failed test i
 
 Retrieval uses deterministic issue tokens, tracked file names, bounded ripgrep content hits, and a test/source name relation. It merges nearby ±20-line windows, caps snippets at 80 lines, and greedily packs by relevance score divided by estimated token cost under an 8,000-token budget. Estimated context tokens use `ceil(UTF-8 bytes / 4)`; they are **not** API token usage. `input_tokens` and `output_tokens` come from provider usage only and are `null` in experiment results if any model call omits usage. The case-level Hit@1/3/5 values compare retrieved files with finally modified files only after repair; those labels never enter retrieval.
 
+## Evaluation Suites
+
+| Suite | Purpose | Cases |
+| --- | --- | --- |
+| General Repair Set | Small representative repair tasks used to compare overall Agent behavior. | email, discount, regression, greeting, invoice |
+| Dynamic Context Challenge Set | Diagnostic tasks intentionally designed so test failures expose repository information absent from the issue and initial B2 context. | five service/dependency cases under `examples/challenge_cases/` |
+
+The challenge set is **not a natural-distribution benchmark** or a SWE-bench result. Each case passes an offline gate before model use: the expected bug file is outside B2 Top3, baseline pytest exposes a new file or symbol clue, and frozen B3 reranking can surface the bug file. Gold labels are stored outside the copied Agent workspace and are used only for qualification and post-run scoring. B2 and B3 use the same model, tools, Agent limits, initial context, and baseline commit; B3 only adds its existing failed-test refresh hook. B0/B1 are not rerun.
+
+```powershell
+python scripts/run_day5_challenge.py --method b2
+python scripts/run_day5_challenge.py --method b3 --resume
+```
+
+Use `--case CASE_ID` for a subset and `--resume` after a provider interruption. The [qualification table](reports/day5_challenge_qualification.csv), [paired results](reports/day5_challenge_results.csv), and [Day 5.5 report](reports/day5_challenge_summary.md) document the diagnostic comparison.
+
 ## Current limitations
 
 - One real Day 2 repair smoke passed on the email toy case. The discount retry and regression scenarios have deterministic mock coverage. See [Day 2 report](reports/day2_summary.md).
 - The patch tool supports existing tracked files and standard unified Git diffs; it does not create, delete, or rename files.
-- There is no arbitrary shell, dependency graph, fixed total dynamic context budget, or benchmark integration yet.
+- There is no arbitrary shell, dependency graph, fixed total dynamic context budget, or external benchmark integration yet.
 - The lightweight `.env` reader supports simple `KEY=VALUE` lines, not the full dotenv format.
 - Shell detection uses the Windows parent process without extra packages, or optional `psutil` on other systems. It reports `unknown` if no reliable signal exists; `REPOPILOT_SHELL` can supply an explicit value.
 - `git_diff` reads working-tree changes only and requires the workspace itself to be the Git root.
